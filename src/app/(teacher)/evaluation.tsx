@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { Bot, Upload, FileText, CheckCircle, X, FileSpreadsheet, ChevronLeft, ChevronRight, BookOpen, AlertCircle } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystemLegacy from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import { buildSystemPrompt, buildExamContext, buildStudentPrompt, parseEvaluationResponse } from '../../lib/evaluation/prompt';
 import { evaluateWithGemini } from '../../lib/gemini';
 import * as XLSX from 'xlsx';
@@ -276,7 +276,7 @@ export default function TeacherEvaluationScreen() {
       updateFileState(file.id, 'uploading');
       try {
         const uploadPath = `temp/${batchId}/${file.name}`;
-        const fileBase64 = await FileSystemLegacy.readAsStringAsync(file.uri, { encoding: FileSystemLegacy.EncodingType.Base64 });
+        const fileBase64 = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 });
         
         const buffer = Buffer.from(fileBase64, 'base64');
         const { error: uploadError } = await supabase.storage.from('answer-scripts').upload(uploadPath, buffer, { contentType: file.mimeType || 'application/pdf', upsert: true });
