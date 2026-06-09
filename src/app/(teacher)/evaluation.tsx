@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { Platform, View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import GlobalHeader from '../../components/GlobalHeader';
 import { Colors, Spacing, Fonts } from '../../constants/theme';
@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { Bot, Upload, FileText, CheckCircle, X, FileSpreadsheet, ChevronLeft, ChevronRight, BookOpen, AlertCircle } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { buildSystemPrompt, buildExamContext, buildStudentPrompt, parseEvaluationResponse } from '../../lib/evaluation/prompt';
 import { evaluateWithGemini } from '../../lib/gemini';
 import * as XLSX from 'xlsx';
@@ -27,25 +28,38 @@ type FileItem = {
   state: 'pending' | 'uploading' | 'evaluating' | 'done' | 'error';
 };
 
-const convertUriToBase64 = async (uri: string): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.onload = function () {
-      try {
-        const arrayBuffer = xhr.response;
-        const base64 = Buffer.from(arrayBuffer).toString('base64');
+const convertUriToBase64 = async (uri: string, fileName: string): Promise<string> => {
+  if (Platform.OS === 'web') {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        const base64 = base64String.split(',')[1] || '';
         resolve(base64);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    xhr.onerror = function (err) {
-      reject(new Error(`Failed to read file at ${uri}`));
-    };
-    xhr.responseType = 'arraybuffer';
-    xhr.open('GET', uri, true);
-    xhr.send(null);
-  });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } else {
+    const tempDir = FileSystem.documentDirectory + 'temp_read/';
+    const dirInfo = await FileSystem.getInfoAsync(tempDir);
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true });
+    }
+    const cleanFileName = fileName.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const destination = tempDir + cleanFileName;
+    try {
+      await FileSystem.copyAsync({ from: uri, to: destination });
+      const base64 = await FileSystem.readAsStringAsync(destination, { encoding: FileSystem.EncodingType.Base64 });
+      await FileSystem.deleteAsync(destination, { idempotent: true });
+      return base64;
+    } catch (error) {
+      await FileSystem.deleteAsync(destination, { idempotent: true }).catch(() => {});
+      throw error;
+    }
+  }
 };
 
 export default function TeacherEvaluationScreen() {
@@ -113,7 +127,7 @@ export default function TeacherEvaluationScreen() {
 
   const handleSelectFiles = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', multiple: true });
+      const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', multiple: true, copyToCacheDirectory: false });
       if (!result.canceled && result.assets) {
         const newFiles = result.assets.map(asset => ({
           id: Math.random().toString(36).substring(7), name: asset.name, uri: asset.uri, mimeType: asset.mimeType, state: 'pending' as const,
@@ -128,6 +142,7 @@ export default function TeacherEvaluationScreen() {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv'],
         multiple: false,
+        copyToCacheDirectory: false,
       });
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
@@ -199,7 +214,7 @@ export default function TeacherEvaluationScreen() {
     if (!selectedGroup || !excelFile || !selectedGroup.offeringId) return;
     setIsRunning(true);
     try {
-      const base64 = await convertUriToBase64(excelFile.uri);
+      const base64 = await convertUriToBase64(excelFile.uri, excelFile.name);
       const workbook = XLSX.read(base64, { type: 'base64' });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json<any>(sheet);
@@ -249,7 +264,7 @@ export default function TeacherEvaluationScreen() {
     }
     setIsRunning(true);
     try {
-      const base64 = await convertUriToBase64(excelFile.uri);
+      const base64 = await convertUriToBase64(excelFile.uri, excelFile.name);
       const workbook = XLSX.read(base64, { type: 'base64' });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json<any>(sheet);
@@ -296,7 +311,7 @@ export default function TeacherEvaluationScreen() {
       updateFileState(file.id, 'uploading');
       try {
         const uploadPath = `temp/${batchId}/${file.name}`;
-        const fileBase64 = await convertUriToBase64(file.uri);
+        const fileBase64 = await convertUriToBase64(file.uri, file.name);
         
         const buffer = Buffer.from(fileBase64, 'base64');
         const { error: uploadError } = await supabase.storage.from('answer-scripts').upload(uploadPath, buffer, { contentType: file.mimeType || 'application/pdf', upsert: true });
