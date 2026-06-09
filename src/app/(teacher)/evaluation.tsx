@@ -28,17 +28,23 @@ type FileItem = {
 };
 
 const convertUriToBase64 = async (uri: string): Promise<string> => {
-  const response = await fetch(uri);
-  const blob = await response.blob();
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      const base64 = base64String.split(',')[1] || '';
-      resolve(base64);
+    const xhr = new XMLHttpRequest();
+    xhr.onload = function () {
+      try {
+        const arrayBuffer = xhr.response;
+        const base64 = Buffer.from(arrayBuffer).toString('base64');
+        resolve(base64);
+      } catch (err) {
+        reject(err);
+      }
     };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
+    xhr.onerror = function (err) {
+      reject(new Error(`Failed to read file at ${uri}`));
+    };
+    xhr.responseType = 'arraybuffer';
+    xhr.open('GET', uri, true);
+    xhr.send(null);
   });
 };
 
