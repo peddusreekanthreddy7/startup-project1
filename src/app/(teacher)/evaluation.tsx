@@ -563,7 +563,7 @@ export default function TeacherEvaluationScreen() {
                   {files.map(f => (
                     <View key={f.id} style={styles.fileRow}>
                       <Text style={styles.fileName} numberOfLines={1}>{f.name}</Text>
-                      {f.state === 'done' ? <CheckCircle size={14} color={Colors.dark.success} /> : f.state === 'error' ? <X size={14} color={Colors.dark.error} /> : <ActivityIndicator size="small" color={Colors.dark.primary} />}
+                      {f.state === 'done' ? <CheckCircle size={14} color={Colors.dark.success} /> : f.state === 'error' ? <X size={14} color={Colors.dark.error} /> : f.state === 'pending' ? <FileText size={14} color={Colors.dark.textSecondary} /> : <ActivityIndicator size="small" color={Colors.dark.primary} />}
                     </View>
                   ))}
                 </View>
