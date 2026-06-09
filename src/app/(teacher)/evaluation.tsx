@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { Bot, Upload, FileText, CheckCircle, X, FileSpreadsheet, ChevronLeft, ChevronRight, BookOpen, AlertCircle } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { buildSystemPrompt, buildExamContext, buildStudentPrompt, parseEvaluationResponse } from '../../lib/evaluation/prompt';
 import { evaluateWithGemini } from '../../lib/gemini';
 import * as XLSX from 'xlsx';
