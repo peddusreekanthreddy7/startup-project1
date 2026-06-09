@@ -288,17 +288,77 @@ export default function TeacherEvaluationScreen() {
         const parsed = parseEvaluationResponse(rawJsonStr);
         
         for (const student of parsed.students) {
-          const { data: profile } = await supabase.from('profiles').select('id').eq('roll_number', student.roll_number).single();
-          const { data: script, error: scriptErr } = await supabase.from('answer_scripts').upsert({
-            exam_id: selectedExam.id, student_id: profile?.id || null, roll_number: student.roll_number,
-            status: 'evaluated', total_awarded: student.total_awarded, evaluated_at: new Date().toISOString(), pdf_path: uploadPath
-          }, { onConflict: 'exam_id,roll_number' }).select('id').single();
+          const studentRoll = student.roll_number.trim();
+          const { data: profile } = await supabase.from('profiles').select('id').eq('roll_number', studentRoll).single();
+          
+          let script: { id: string } | null = null;
+          let scriptErr: any = null;
+          const studentId = profile?.id ?? null;
+
+          if (studentId) {
+            // Registered student - upsert by exam_id + student_id
+            const res = await supabase.from('answer_scripts').upsert({
+              exam_id: selectedExam.id,
+              student_id: studentId,
+              roll_number: studentRoll,
+              status: 'evaluated',
+              total_awarded: student.total_awarded,
+              evaluated_at: new Date().toISOString(),
+              pdf_path: uploadPath
+            }, { onConflict: 'exam_id,student_id' }).select('id').single();
+            script = res.data;
+            scriptErr = res.error;
+          } else {
+            // Orphan - check if exists by roll_number + exam_id, then update or insert
+            const { data: existing } = await supabase
+              .from('answer_scripts')
+              .select('id')
+              .eq('exam_id', selectedExam.id)
+              .eq('roll_number', studentRoll)
+              .maybeSingle();
+
+            if (existing) {
+              const res = await supabase
+                .from('answer_scripts')
+                .update({
+                  status: 'evaluated',
+                  total_awarded: student.total_awarded,
+                  evaluated_at: new Date().toISOString(),
+                  pdf_path: uploadPath
+                })
+                .eq('id', existing.id)
+                .select('id')
+                .single();
+              script = res.data;
+              scriptErr = res.error;
+            } else {
+              const res = await supabase
+                .from('answer_scripts')
+                .insert({
+                  exam_id: selectedExam.id,
+                  roll_number: studentRoll,
+                  status: 'evaluated',
+                  total_awarded: student.total_awarded,
+                  evaluated_at: new Date().toISOString(),
+                  pdf_path: uploadPath
+                })
+                .select('id')
+                .single();
+              script = res.data;
+              scriptErr = res.error;
+            }
+          }
 
           if (scriptErr) throw scriptErr;
           if (student.questions && script?.id) {
             const questionRows = student.questions.map(q => ({
-              script_id: script.id, qno: q.qno, max_marks: q.max_marks, awarded_marks: q.awarded_marks,
-              verdict: q.verdict, ai_feedback: q.ai_feedback, correct_approach: q.correct_approach
+              script_id: script.id,
+              qno: q.qno,
+              max_marks: q.max_marks,
+              awarded_marks: q.awarded_marks,
+              verdict: q.verdict,
+              ai_feedback: q.ai_feedback,
+              correct_approach: q.correct_approach
             }));
             await supabase.from('script_questions').delete().eq('script_id', script.id);
             await supabase.from('script_questions').insert(questionRows);
