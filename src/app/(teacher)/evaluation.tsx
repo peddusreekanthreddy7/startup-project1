@@ -8,7 +8,6 @@ import { supabase } from '../../lib/supabase';
 import { Bot, Upload, FileText, CheckCircle, X, FileSpreadsheet, ChevronLeft, ChevronRight, BookOpen, AlertCircle } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
 import { buildSystemPrompt, buildExamContext, buildStudentPrompt, parseEvaluationResponse } from '../../lib/evaluation/prompt';
 import { evaluateWithGemini } from '../../lib/gemini';
 import * as XLSX from 'xlsx';
@@ -26,6 +25,21 @@ type ExamGroup = {
 type FileItem = {
   id: string; name: string; uri: string; mimeType?: string;
   state: 'pending' | 'uploading' | 'evaluating' | 'done' | 'error';
+};
+
+const convertUriToBase64 = async (uri: string): Promise<string> => {
+  const response = await fetch(uri);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      const base64 = base64String.split(',')[1] || '';
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 };
 
 export default function TeacherEvaluationScreen() {
@@ -179,7 +193,7 @@ export default function TeacherEvaluationScreen() {
     if (!selectedGroup || !excelFile || !selectedGroup.offeringId) return;
     setIsRunning(true);
     try {
-      const base64 = await FileSystemLegacy.readAsStringAsync(excelFile.uri, { encoding: FileSystemLegacy.EncodingType.Base64 });
+      const base64 = await convertUriToBase64(excelFile.uri);
       const workbook = XLSX.read(base64, { type: 'base64' });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json<any>(sheet);
@@ -229,7 +243,7 @@ export default function TeacherEvaluationScreen() {
     }
     setIsRunning(true);
     try {
-      const base64 = await FileSystemLegacy.readAsStringAsync(excelFile.uri, { encoding: FileSystemLegacy.EncodingType.Base64 });
+      const base64 = await convertUriToBase64(excelFile.uri);
       const workbook = XLSX.read(base64, { type: 'base64' });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json<any>(sheet);
@@ -276,7 +290,7 @@ export default function TeacherEvaluationScreen() {
       updateFileState(file.id, 'uploading');
       try {
         const uploadPath = `temp/${batchId}/${file.name}`;
-        const fileBase64 = await FileSystem.readAsStringAsync(file.uri, { encoding: FileSystem.EncodingType.Base64 });
+        const fileBase64 = await convertUriToBase64(file.uri);
         
         const buffer = Buffer.from(fileBase64, 'base64');
         const { error: uploadError } = await supabase.storage.from('answer-scripts').upload(uploadPath, buffer, { contentType: file.mimeType || 'application/pdf', upsert: true });
