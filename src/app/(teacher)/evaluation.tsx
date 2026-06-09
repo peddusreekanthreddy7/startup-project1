@@ -295,6 +295,17 @@ export default function TeacherEvaluationScreen() {
           let scriptErr: any = null;
           const studentId = profile?.id ?? null;
 
+          // Upload PDF to permanent location
+          const storageKey = studentId ?? studentRoll;
+          const permanentPath = `${selectedExam.id}/${storageKey}.pdf`;
+          const { error: permUploadError } = await supabase.storage
+            .from('answer-scripts')
+            .upload(permanentPath, buffer, { contentType: file.mimeType || 'application/pdf', upsert: true });
+
+          if (permUploadError) {
+            console.warn(`[storage] Permanent upload failed for ${studentRoll}:`, permUploadError.message);
+          }
+
           if (studentId) {
             // Registered student - upsert by exam_id + student_id
             const res = await supabase.from('answer_scripts').upsert({
@@ -304,7 +315,7 @@ export default function TeacherEvaluationScreen() {
               status: 'evaluated',
               total_awarded: student.total_awarded,
               evaluated_at: new Date().toISOString(),
-              pdf_path: uploadPath
+              pdf_path: permanentPath
             }, { onConflict: 'exam_id,student_id' }).select('id').single();
             script = res.data;
             scriptErr = res.error;
@@ -324,7 +335,7 @@ export default function TeacherEvaluationScreen() {
                   status: 'evaluated',
                   total_awarded: student.total_awarded,
                   evaluated_at: new Date().toISOString(),
-                  pdf_path: uploadPath
+                  pdf_path: permanentPath
                 })
                 .eq('id', existing.id)
                 .select('id')
@@ -340,7 +351,7 @@ export default function TeacherEvaluationScreen() {
                   status: 'evaluated',
                   total_awarded: student.total_awarded,
                   evaluated_at: new Date().toISOString(),
-                  pdf_path: uploadPath
+                  pdf_path: permanentPath
                 })
                 .select('id')
                 .single();
@@ -364,9 +375,14 @@ export default function TeacherEvaluationScreen() {
             await supabase.from('script_questions').insert(questionRows);
           }
         }
+        // Clean up temp upload
+        await supabase.storage.from('answer-scripts').remove([uploadPath]).catch(() => {});
         updateFileState(file.id, 'done');
       } catch (err) {
         console.error(err);
+        // Clean up temp upload on error
+        const uploadPath = `temp/${batchId}/${file.name}`;
+        await supabase.storage.from('answer-scripts').remove([uploadPath]).catch(() => {});
         updateFileState(file.id, 'error');
       }
     }
