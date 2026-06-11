@@ -408,6 +408,38 @@ export default function TeacherEvaluationScreen() {
             }));
             await supabase.from('script_questions').delete().eq('script_id', script.id);
             await supabase.from('script_questions').insert(questionRows);
+
+            // Sync marks to student_marks table
+            if (studentId && selectedExam.offering_id) {
+              try {
+                const { data: enrollment } = await supabase
+                  .from('enrollments')
+                  .select('id')
+                  .eq('student_id', studentId)
+                  .eq('offering_id', selectedExam.offering_id)
+                  .not('status', 'eq', 'dropped')
+                  .maybeSingle();
+
+                if (enrollment) {
+                  const component = selectedExam.exam_type ?? 'end';
+                  const { error: upsertErr } = await supabase
+                    .from('student_marks')
+                    .upsert({
+                      enrollment_id: enrollment.id,
+                      exam_id: selectedExam.id,
+                      component: component,
+                      marks_obtained: student.total_awarded,
+                      max_marks: selectedExam.total_marks
+                    }, { onConflict: 'enrollment_id,component' });
+
+                  if (upsertErr) {
+                    console.warn('[student_marks] mobile upsert failed:', upsertErr.message);
+                  }
+                }
+              } catch (syncErr) {
+                console.warn('[student_marks] mobile sync exception:', syncErr);
+              }
+            }
           }
         }
         // Clean up temp upload
