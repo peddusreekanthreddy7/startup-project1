@@ -44,6 +44,13 @@ type Question = {
   ai_feedback: string;
   correct_approach: string | null;
   student_answer: string | null;
+
+  // New VLM fields
+  feedback?: string | null;
+  formulas?: string[] | null;
+  tables?: string[] | null;
+  diagram_description?: string | null;
+  criteria_analysis?: Array<{ criterion: string; status: 'met' | 'partial' | 'not_met'; marks_awarded: number; justification: string }> | null;
 };
 
 export default function ScriptsScreen() {
@@ -70,6 +77,11 @@ export default function ScriptsScreen() {
     exam?: Exam | null;
     student: ScriptListItem['student'];
     questions: Question[];
+
+    // New VLM fields
+    overall_feedback?: string | null;
+    audit_trail?: string | null;
+    thinking?: string | null;
   } | null>(null);
 
   // UI state
@@ -150,10 +162,14 @@ export default function ScriptsScreen() {
           total_awarded,
           pdf_path,
           roll_number,
+          overall_feedback,
+          audit_trail,
+          thinking,
           exam:exams!exam_id(id, title, total_marks, subject),
           student:profiles!student_id(id, full_name, roll_number, email, branch, year, section),
           questions:script_questions(
-            id, qno, max_marks, awarded_marks, verdict, ai_feedback, correct_approach, student_answer
+            id, qno, max_marks, awarded_marks, verdict, ai_feedback, correct_approach, student_answer,
+            feedback, formulas, tables, diagram_description, criteria_analysis
           )
         `)
         .eq('id', scriptId)
@@ -525,11 +541,37 @@ export default function ScriptsScreen() {
               </View>
             </View>
 
+            {/* Overall Feedback Card */}
+            {scriptDetail.overall_feedback ? (
+              <View style={[styles.profileCard, { borderStyle: 'dashed', borderColor: Colors.dark.primary, backgroundColor: 'rgba(235, 94, 40, 0.05)' }]}>
+                <Text style={[styles.profileHeader, { color: Colors.dark.primary, marginBottom: 6 }]}>Overall Summary & Feedback</Text>
+                <Text style={styles.feedbackText}>{scriptDetail.overall_feedback}</Text>
+                {scriptDetail.audit_trail ? (
+                  <Text style={[styles.feedbackText, { marginTop: 6, fontStyle: 'italic' }]}>
+                    Audit Trail: {scriptDetail.audit_trail}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {/* Chain-of-thought Terminal */}
+            {scriptDetail.thinking ? (
+              <View style={[styles.profileCard, { backgroundColor: '#181816', borderColor: '#333' }]}>
+                <Text style={[styles.profileHeader, { color: '#10b981', fontFamily: Fonts.mono, fontSize: 11 }]}>
+                  AI Chain-of-Thought (Thought Log)
+                </Text>
+                <Text style={{ fontFamily: Fonts.mono, fontSize: 11, color: '#a7f3d0', marginTop: 8 }}>
+                  {scriptDetail.thinking}
+                </Text>
+              </View>
+            ) : null}
+
             {/* Questions List */}
             <View style={{ gap: Spacing.three }}>
               {scriptDetail.questions.map((q) => {
                 const badge = getVerdictBadgeColor(q.verdict);
                 const isEditing = editingQId === q.id;
+                const displayFeedback = q.feedback || q.ai_feedback;
 
                 return (
                   <View key={q.id} style={styles.questionCard}>
@@ -571,13 +613,37 @@ export default function ScriptsScreen() {
                     </View>
 
                     {/* AI Feedback */}
-                    <View style={styles.feedbackSection}>
-                      <Text style={styles.sectionHeading}>AI FEEDBACK</Text>
-                      <Text style={styles.feedbackText}>{q.ai_feedback}</Text>
-                    </View>
+                    {displayFeedback ? (
+                      <View style={styles.feedbackSection}>
+                        <Text style={styles.sectionHeading}>AI FEEDBACK</Text>
+                        <Text style={styles.feedbackText}>{displayFeedback}</Text>
+                      </View>
+                    ) : null}
 
-                    {/* Ideal Approach */}
-                    {q.correct_approach && (
+                    {/* Rubric Criteria Analysis */}
+                    {q.criteria_analysis && q.criteria_analysis.length > 0 && (
+                      <View style={{ marginBottom: Spacing.two, gap: 6 }}>
+                        <Text style={[styles.sectionHeading, { color: Colors.dark.primary }]}>RUBRIC CRITERIA</Text>
+                        {q.criteria_analysis.map((c, idx) => (
+                          <View key={idx} style={{ backgroundColor: Colors.dark.surfaceLight, padding: 8, borderRadius: 8, borderWidth: 1, borderColor: Colors.dark.border }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.dark.text }}>{c.criterion}</Text>
+                              <Text style={{ fontSize: 10, fontWeight: '700', color: c.status === 'met' ? Colors.dark.success : c.status === 'partial' ? Colors.dark.warning : Colors.dark.error }}>
+                                {c.status.toUpperCase()} ({c.marks_awarded} pts)
+                              </Text>
+                            </View>
+                            {c.justification ? (
+                              <Text style={{ fontSize: 10, color: Colors.dark.textSecondary, marginTop: 4 }}>
+                                Justification: {c.justification}
+                              </Text>
+                            ) : null}
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Ideal Approach fallback if no criteria_analysis */}
+                    {(!q.criteria_analysis || q.criteria_analysis.length === 0) && q.correct_approach && (
                       <View style={styles.approachSection}>
                         <Text style={[styles.sectionHeading, { color: Colors.dark.success }]}>IDEAL APPROACH</Text>
                         <Text style={styles.approachText}>{q.correct_approach}</Text>
@@ -585,10 +651,40 @@ export default function ScriptsScreen() {
                     )}
 
                     {/* Extracted Answer */}
-                    {showTranscription && q.student_answer && (
+                    {showTranscription && (q.student_answer || q.formulas?.length || q.tables?.length || q.diagram_description) && (
                       <View style={styles.transcriptionSection}>
                         <Text style={[styles.sectionHeading, { color: Colors.dark.primary }]}>EXTRACTED STUDENT ANSWER</Text>
-                        <Text style={styles.transcriptionText}>{q.student_answer}</Text>
+                        {q.student_answer ? (
+                          <Text style={styles.transcriptionText}>"{q.student_answer}"</Text>
+                        ) : null}
+                        {q.formulas && q.formulas.length > 0 ? (
+                          <View style={{ marginTop: 6, borderTopWidth: 1, borderTopColor: Colors.dark.border, paddingTop: 6 }}>
+                            <Text style={styles.sectionHeading}>LaTeX Equations:</Text>
+                            {q.formulas.map((f, idx) => (
+                              <Text key={idx} style={{ fontFamily: Fonts.mono, fontSize: 11, color: Colors.dark.primary, marginTop: 2 }}>
+                                {f}
+                              </Text>
+                            ))}
+                          </View>
+                        ) : null}
+                        {q.tables && q.tables.length > 0 ? (
+                          <View style={{ marginTop: 6, borderTopWidth: 1, borderTopColor: Colors.dark.border, paddingTop: 6 }}>
+                            <Text style={styles.sectionHeading}>Tables:</Text>
+                            {q.tables.map((t, idx) => (
+                              <Text key={idx} style={{ fontFamily: Fonts.mono, fontSize: 10, color: Colors.dark.textSecondary, marginTop: 2 }}>
+                                {t}
+                              </Text>
+                            ))}
+                          </View>
+                        ) : null}
+                        {q.diagram_description ? (
+                          <View style={{ marginTop: 6, borderTopWidth: 1, borderTopColor: Colors.dark.border, paddingTop: 6 }}>
+                            <Text style={styles.sectionHeading}>Diagram Description:</Text>
+                            <Text style={{ fontSize: 11, fontStyle: 'italic', color: Colors.dark.textSecondary }}>
+                              {q.diagram_description}
+                            </Text>
+                          </View>
+                        ) : null}
                       </View>
                     )}
                   </View>

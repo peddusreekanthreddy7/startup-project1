@@ -18,6 +18,12 @@ type Question = {
   ai_feedback: string;
   correct_approach: string;
   student_answer: string | null;
+
+  // New VLM fields
+  feedback?: string | null;
+  formulas?: string[] | null;
+  tables?: string[] | null;
+  diagram_description?: string | null;
 };
 
 type Script = {
@@ -34,6 +40,10 @@ type Script = {
     exam_date: string | null;
   } | null;
   questions: Question[];
+
+  // New VLM fields
+  overall_feedback: string | null;
+  audit_trail: string | null;
 };
 
 export default function ScriptsScreen() {
@@ -66,6 +76,8 @@ export default function ScriptsScreen() {
           total_awarded,
           evaluated_at,
           pdf_path,
+          overall_feedback,
+          audit_trail,
           exam:exams!exam_id(
             id,
             title,
@@ -81,7 +93,11 @@ export default function ScriptsScreen() {
             verdict,
             ai_feedback,
             correct_approach,
-            student_answer
+            student_answer,
+            feedback,
+            formulas,
+            tables,
+            diagram_description
           )
         `)
         .eq('student_id', user.id)
@@ -275,6 +291,14 @@ export default function ScriptsScreen() {
             <ExternalLink size={14} color={Colors.dark.textSecondary} style={{ marginLeft: 'auto' }} />
           </TouchableOpacity>
 
+          {/* Overall Feedback Card */}
+          {selectedScript.overall_feedback ? (
+            <View style={[styles.questionCard, { backgroundColor: 'rgba(235, 94, 40, 0.05)', borderColor: Colors.dark.primary, borderStyle: 'dashed' }]}>
+              <Text style={[styles.questionNumber, { color: Colors.dark.primary, marginBottom: 6 }]}>Overall Summary & Feedback</Text>
+              <Text style={styles.feedbackText}>{selectedScript.overall_feedback}</Text>
+            </View>
+          ) : null}
+
           {/* Evaluation title */}
           <View style={styles.sectionTitleRow}>
             <CheckCircle size={14} color={Colors.dark.success} style={{ marginRight: 6 }} />
@@ -286,6 +310,7 @@ export default function ScriptsScreen() {
           {sortedQuestions.length > 0 ? (
             sortedQuestions.map((q) => {
               const vs = getVerdictStyle(q.verdict);
+              const displayFeedback = q.feedback || q.ai_feedback;
               return (
                 <View key={q.id} style={styles.questionCard}>
                   <View style={styles.questionCardHeader}>
@@ -308,20 +333,55 @@ export default function ScriptsScreen() {
                   </View>
 
                   <View style={styles.questionCardBody}>
-                    <Text style={styles.feedbackLabel}>Evaluation Verdict:</Text>
-                    <Text style={styles.feedbackText}>{q.ai_feedback}</Text>
-
-                    {q.correct_approach ? (
-                      <View style={styles.idealApproachBox}>
-                        <Text style={styles.idealLabel}>Correct Approach / Rubric:</Text>
-                        <Text style={styles.idealText}>{q.correct_approach}</Text>
+                    {displayFeedback ? (
+                      <View>
+                        <Text style={styles.feedbackLabel}>AI Feedback:</Text>
+                        <Text style={styles.feedbackText}>{displayFeedback}</Text>
                       </View>
                     ) : null}
 
-                    {q.student_answer ? (
+                    {/* OCR Answer transcription verification box */}
+                    {(q.student_answer || q.formulas?.length || q.tables?.length || q.diagram_description) ? (
                       <View style={styles.studentAnswerBox}>
-                        <Text style={styles.idealLabel}>Transcribed Answer:</Text>
-                        <Text style={styles.studentAnswerText}>"{q.student_answer}"</Text>
+                        <Text style={styles.idealLabel}>AI Transcribed Answer:</Text>
+                        {q.student_answer ? (
+                          <Text style={styles.feedbackText}>"{q.student_answer}"</Text>
+                        ) : null}
+                        {q.formulas && q.formulas.length > 0 ? (
+                          <View style={{ marginTop: 6, borderTopWidth: 1, borderTopColor: Colors.dark.border, paddingTop: 6 }}>
+                            <Text style={styles.idealLabel}>LaTeX Equations:</Text>
+                            {q.formulas.map((f, idx) => (
+                              <Text key={idx} style={{ fontFamily: Fonts.mono, fontSize: 11, color: Colors.dark.primary, marginTop: 2 }}>
+                                {f}
+                              </Text>
+                            ))}
+                          </View>
+                        ) : null}
+                        {q.tables && q.tables.length > 0 ? (
+                          <View style={{ marginTop: 6, borderTopWidth: 1, borderTopColor: Colors.dark.border, paddingTop: 6 }}>
+                            <Text style={styles.idealLabel}>Tables:</Text>
+                            {q.tables.map((t, idx) => (
+                              <Text key={idx} style={{ fontFamily: Fonts.mono, fontSize: 10, color: Colors.dark.textSecondary, marginTop: 2 }}>
+                                {t}
+                              </Text>
+                            ))}
+                          </View>
+                        ) : null}
+                        {q.diagram_description ? (
+                          <View style={{ marginTop: 6, borderTopWidth: 1, borderTopColor: Colors.dark.border, paddingTop: 6 }}>
+                            <Text style={styles.idealLabel}>Diagram description:</Text>
+                            <Text style={{ fontSize: 11, fontStyle: 'italic', color: Colors.dark.textSecondary }}>
+                              {q.diagram_description}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : null}
+
+                    {(!q.student_answer && q.correct_approach) ? (
+                      <View style={styles.idealApproachBox}>
+                        <Text style={styles.idealLabel}>Correct Approach / Rubric:</Text>
+                        <Text style={styles.idealText}>{q.correct_approach}</Text>
                       </View>
                     ) : null}
                   </View>
