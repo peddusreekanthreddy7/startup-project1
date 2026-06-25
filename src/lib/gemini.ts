@@ -2,9 +2,9 @@ import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 
 // ── Multi-key pool with random selection ─────────────────────────────────────
 const GEMINI_KEYS = [
-  "***REDACTED_GEMINI_KEY_1***",
-  "***REDACTED_GEMINI_KEY_2***",
-  "***REDACTED_GEMINI_KEY_3***",
+  process.env.EXPO_PUBLIC_GEMINI_API_KEY,
+  process.env.EXPO_PUBLIC_GEMINI_API_KEY_2,
+  process.env.EXPO_PUBLIC_GEMINI_API_KEY_3,
 ].filter(Boolean);
 
 const MODEL = "gemma-4-31b-it";
