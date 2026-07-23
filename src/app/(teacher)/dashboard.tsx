@@ -28,6 +28,7 @@ export default function TeacherDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<Stats>({ totalExams: 0, totalEvaluated: 0, pendingObjections: 0 });
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [limit, setLimit] = useState(10);
 
   const fetchStatsAndBatches = async () => {
     if (!user) return;
@@ -101,7 +102,7 @@ export default function TeacherDashboard() {
           .eq('status', 'evaluated')
           .in('exam_id', examIds)
           .order('evaluated_at', { ascending: false })
-          .limit(10);
+          .limit(limit);
 
         if (scriptsErr) throw scriptsErr;
 
@@ -120,7 +121,7 @@ export default function TeacherDashboard() {
           .is('student_id', null)
           .in('exam_id', examIds)
           .order('evaluated_at', { ascending: false })
-          .limit(10);
+          .limit(limit);
 
         if (orphansErr) throw orphansErr;
 
@@ -133,7 +134,7 @@ export default function TeacherDashboard() {
             const tb = b.evaluated_at ? new Date(b.evaluated_at).getTime() : 0;
             return tb - ta;
           })
-          .slice(0, 10);
+          .slice(0, limit);
 
         setBatches(merged as unknown as Batch[]);
       } else {
@@ -149,7 +150,7 @@ export default function TeacherDashboard() {
 
   useEffect(() => {
     fetchStatsAndBatches();
-  }, [user]);
+  }, [user, limit]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -300,6 +301,17 @@ export default function TeacherDashboard() {
                 </TouchableOpacity>
               );
             })}
+            {stats.totalEvaluated > 10 && (
+              <TouchableOpacity
+                style={styles.showMoreBtn}
+                onPress={() => setLimit(limit === 10 ? stats.totalEvaluated : 10)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.showMoreText}>
+                  {limit === 10 ? 'Show All' : 'Show Less'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <View style={styles.emptyContainer}>
@@ -518,5 +530,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.dark.textSecondary,
     fontStyle: 'italic',
+  },
+  showMoreBtn: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: Colors.dark.border,
+    marginTop: 8,
+  },
+  showMoreText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.dark.primary,
   },
 });
