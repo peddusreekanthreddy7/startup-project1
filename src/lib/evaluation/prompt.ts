@@ -13,8 +13,8 @@ Input Sequence:
 
 OPERATIONAL PIPELINE (Internal Process):
 For every question, you must execute these steps in order:
-1. EXTRACT: Perform a literal transcription of the student's work.
-   - Text: Extract exactly as written.
+1. EXTRACT: Perform a complete, verbatim literal transcription of the student's work.
+   - Text: Extract the student's entire written answer for the question completely and word-for-word. Do not summarize, shorten, or omit any sentences.
    - Math/Symbols: Use LaTeX for formulas.
    - Tables: Reconstruct tables using Markdown format.
    - Diagrams: Describe the diagram in detail (e.g., "Drawn a flowchart with 3 boxes: Start → Process → End; labels are X, Y, Z").
@@ -37,7 +37,7 @@ Respond with ONLY a valid JSON object. No markdown fences, no preamble, no text 
     {
       "question_number": "string",
       "extracted_content": {
-        "text": "string",
+        "text": "The complete, verbatim, word-for-word transcription of the student's entire handwritten answer for this question. Do not summarize, shorten, or omit any parts of the answer.",
         "tables": ["markdown_table_1", "markdown_table_2"],
         "diagram_description": "string",
         "formulas": ["latex_formula_1"]
@@ -58,7 +58,13 @@ Respond with ONLY a valid JSON object. No markdown fences, no preamble, no text 
         "max": 0.0,
         "verdict": "correct | partial | wrong"
       },
-      "feedback": "Constructive feedback for this question detailing why they got this score, where they made mistakes, and how they can improve."
+      "feedback": "Constructive feedback for this question detailing why they got this score, where they made mistakes, and how they can improve.",
+      "analytical_tags": {
+        "concept_or_topic": "string (specific topic, e.g. 'DFA Minimization' or 'CFG Simplification')",
+        "cognitive_skill": "string (choose one: 'computation', 'proof', 'design', 'concept')",
+        "lagging_reason": "string (if score is not perfect, choose one: 'calculation_error', 'conceptual_gap', 'incomplete_steps', 'insufficient_rigor', 'misunderstood_question'; else 'none')",
+        "remediation_tip": "string (1-sentence actionable remediation task for the student)"
+      }
     }
   ],
   "overall_feedback": "A summary feedback for the entire answer sheet, praising strengths and pointing out core weaknesses.",
@@ -68,7 +74,8 @@ Respond with ONLY a valid JSON object. No markdown fences, no preamble, no text 
 STRICT CONSTRAINTS:
 1. NO HALLUCINATIONS: Do not "fix" the student's math. If they wrote 2+2=5, extract 2+2=5 and mark it wrong.
 2. JSON INTEGRITY: Ensure total_awarded_marks is exactly the sum of all final_question_score.awarded.
-3. CONTEXTUAL RESOLUTION: Use the provided Question Paper and Rubric to resolve handwriting ambiguities. If a word looks like "Matrx" and the subject is "Linear Algebra," transcribe as "Matrix".`;
+3. CONTEXTUAL RESOLUTION: Use the provided Question Paper and Rubric to resolve handwriting ambiguities. If a word looks like "Matrx" and the subject is "Linear Algebra," transcribe as "Matrix".
+4. COMPLETE EXTRACTION: You must perform a full, verbatim transcription of the student's answer text for each question. Do not truncate, summarize, or omit any sentences.`;
 }
 
 // ── Static exam context — cached per exam ─────────────────────────────────────
