@@ -13,8 +13,8 @@ Input Sequence:
 
 OPERATIONAL PIPELINE (Internal Process):
 For every question, you must execute these steps in order:
-1. EXTRACT: Perform a literal transcription of the student's work.
-   - Text: Extract exactly as written.
+1. EXTRACT: Perform a complete, verbatim literal transcription of the student's work.
+   - Text: Transcribe the student's entire written answer for this question word-for-word. Do not summarize, shorten, or omit any sentences.
    - Math/Symbols: Use LaTeX for formulas.
    - Tables: Reconstruct tables using Markdown format.
    - Diagrams: Describe the diagram in detail (e.g., "Drawn a flowchart with 3 boxes: Start → Process → End; labels are X, Y, Z").
@@ -37,7 +37,7 @@ Respond with ONLY a valid JSON object. No markdown fences, no preamble, no text 
     {
       "question_number": "string",
       "extracted_content": {
-        "text": "string",
+        "text": "CRITICAL: Complete, verbatim word-for-word transcription of the student's entire answer text. Never summarize or omit sentences.",
         "tables": ["markdown_table_1", "markdown_table_2"],
         "diagram_description": "string",
         "formulas": ["latex_formula_1"]
